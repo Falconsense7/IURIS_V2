@@ -26,7 +26,7 @@ import {
   ZoomOut,
   MessageSquare,
   Link,
-  Highlighter as HighlighterIcon,
+  Pencil as HighlighterIcon,
 } from "lucide-react";
 
 interface DocumentViewerProps {
@@ -135,6 +135,12 @@ const DocumentViewer = ({
   ) => {
     if (!selectedText || !annotationType) return;
 
+    // Get current page annotations count for positioning
+    const currentPageAnnotations = annotations.filter(
+      (a) => a.page === currentPage,
+    );
+    const yPosition = currentPageAnnotations.length * 30 + 20;
+
     const newAnnotation: Annotation = {
       id: Date.now().toString(),
       text: selectedText,
@@ -144,6 +150,10 @@ const DocumentViewer = ({
       refDocId,
       refDocTitle,
       createdAt: new Date().toISOString(),
+      position: {
+        x: 10,
+        y: yPosition,
+      },
     };
 
     // Update annotations state immediately to trigger re-render
@@ -411,36 +421,43 @@ const DocumentViewer = ({
                   </div>
 
                   {/* Annotation Markers */}
-                  {annotations.map((annotation) => {
-                    // Determine icon based on annotation type
-                    let bgColor = "bg-yellow-200";
-                    let Icon = Bookmark;
+                  {annotations
+                    .filter((annotation) => annotation.page === currentPage)
+                    .map((annotation, index) => {
+                      // Determine icon based on annotation type
+                      let bgColor = "bg-yellow-200";
+                      let Icon = Bookmark;
 
-                    if (annotation.type === "comment") {
-                      bgColor = "bg-blue-200";
-                      Icon = MessageSquare;
-                    } else if (annotation.type === "reference") {
-                      bgColor = "bg-green-200";
-                      Icon = Link;
-                    } else if (annotation.type === "highlight") {
-                      bgColor = "bg-yellow-200";
-                      Icon = HighlighterIcon;
-                    }
+                      if (annotation.type === "comment") {
+                        bgColor = "bg-blue-200";
+                        Icon = MessageSquare;
+                      } else if (annotation.type === "reference") {
+                        bgColor = "bg-green-200";
+                        Icon = Link;
+                      } else if (annotation.type === "highlight") {
+                        bgColor = "bg-yellow-200";
+                        Icon = HighlighterIcon;
+                      }
 
-                    return (
-                      <div
-                        key={annotation.id}
-                        className={`absolute ${bgColor} p-1 rounded-full cursor-pointer z-10`}
-                        style={{
-                          top: `${annotation.id.length * 20}px`,
-                          right: "10px",
-                        }}
-                        title={`${annotation.type}: ${annotation.text}`}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div
+                          key={annotation.id}
+                          className={`absolute ${bgColor} p-1 rounded-full cursor-pointer z-10`}
+                          style={{
+                            top: `${index * 30 + 20}px`,
+                            right: "10px",
+                          }}
+                          title={`${annotation.type}: ${annotation.text}`}
+                          onClick={() => {
+                            alert(
+                              `${annotation.type}: ${annotation.text}${annotation.comment ? `\n\nComentário: ${annotation.comment}` : ""}`,
+                            );
+                          }}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                      );
+                    })}
                   <div className="text-center mb-8">
                     <h1 className="text-2xl font-bold mb-2">
                       CONSTITUIÇÃO DA REPÚBLICA DE MOÇAMBIQUE
