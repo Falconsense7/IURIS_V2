@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,11 +38,17 @@ const DocumentViewer = ({
   documentTitle = "Constituição da República de Moçambique",
   documentType = "Constitucional",
   isOffline = false,
+  documentId = "constitution-moz",
 }: DocumentViewerProps) => {
+  const documentRef = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages] = useState<number>(42); // This would be determined from the actual document
+  const [isAnnotating, setIsAnnotating] = useState<boolean>(false);
+  const [selectedText, setSelectedText] = useState<string>("");
+  const [annotationType, setAnnotationType] = useState<string | null>(null);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
 
   const handleZoomChange = (value: number[]) => {
     setZoomLevel(value[0]);
@@ -64,6 +70,60 @@ const DocumentViewer = ({
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
     }
+  };
+
+  // Load annotations from localStorage when component mounts
+  React.useEffect(() => {
+    const savedAnnotations = localStorage.getItem(`annotations-${documentId}`);
+    if (savedAnnotations) {
+      setAnnotations(JSON.parse(savedAnnotations));
+    }
+  }, [documentId]);
+
+  const createAnnotation = (
+    comment?: string,
+    refDocId?: string,
+    refDocTitle?: string,
+  ) => {
+    if (!selectedText || !annotationType) return;
+
+    const newAnnotation: Annotation = {
+      id: Date.now().toString(),
+      text: selectedText,
+      type: annotationType,
+      page: currentPage,
+      comment,
+      refDocId,
+      refDocTitle,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedAnnotations = [...annotations, newAnnotation];
+    setAnnotations(updatedAnnotations);
+
+    // Save to localStorage
+    localStorage.setItem(
+      `annotations-${documentId}`,
+      JSON.stringify(updatedAnnotations),
+    );
+
+    setIsAnnotating(false);
+    setSelectedText("");
+    setAnnotationType(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const deleteAnnotation = (annotationId: string) => {
+    const updatedAnnotations = annotations.filter(
+      (annotation) => annotation.id !== annotationId,
+    );
+    setAnnotations(updatedAnnotations);
+
+    // Update localStorage
+    localStorage.setItem(
+      `annotations-${documentId}`,
+      JSON.stringify(updatedAnnotations),
+    );
   };
 
   return (
@@ -142,7 +202,32 @@ const DocumentViewer = ({
         </div>
       </div>
 
-      <AnnotationToolbar />
+      <AnnotationToolbar
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
+        onHighlight={() => {
+          setIsAnnotating(true);
+          setAnnotationType("highlight");
+          setSelectedText(window.getSelection()?.toString() || "");
+        }}
+        onComment={() => {
+          setIsAnnotating(true);
+          setAnnotationType("comment");
+          setSelectedText(window.getSelection()?.toString() || "");
+        }}
+        onBookmark={() => {
+          setIsAnnotating(true);
+          setAnnotationType("bookmark");
+          setSelectedText(window.getSelection()?.toString() || "");
+        }}
+        onReference={() => {
+          setIsAnnotating(true);
+          setAnnotationType("reference");
+          setSelectedText(window.getSelection()?.toString() || "");
+        }}
+        onTextSizeChange={(size) => setZoomLevel(size)}
+        textSize={zoomLevel}
+      />
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="document" className="h-full">
@@ -175,6 +260,7 @@ const DocumentViewer = ({
           <TabsContent value="document" className="h-full p-0 m-0">
             <ScrollArea className="h-full">
               <div
+                ref={documentRef}
                 className="relative p-4"
                 style={{
                   transform: `scale(${zoomLevel / 100})`,
@@ -182,6 +268,83 @@ const DocumentViewer = ({
                   minHeight: `${100 * (100 / zoomLevel)}%`,
                 }}
               >
+                {isAnnotating && selectedText && (
+                  <div className="fixed bottom-4 right-4 bg-background border shadow-lg p-4 rounded-lg z-50 w-80">
+                    <h4 className="font-medium mb-2">
+                      {annotationType === "highlight" && "Destacar Texto"}
+                      {annotationType === "comment" && "Adicionar Comentário"}
+                      {annotationType === "bookmark" && "Adicionar Marcador"}
+                      {annotationType === "reference" && "Criar Referência"}
+                    </h4>
+                    <p className="text-sm italic mb-2 border-l-2 border-primary pl-2">
+                      "{selectedText}"
+                    </p>
+
+                    {annotationType === "comment" && (
+                      <textarea
+                        className="w-full p-2 border rounded-md mb-2 text-sm"
+                        placeholder="Digite seu comentário aqui..."
+                        rows={3}
+                        id="annotation-comment"
+                      />
+                    )}
+
+                    {annotationType === "reference" && (
+                      <div className="mb-2">
+                        <select
+                          className="w-full p-2 border rounded-md text-sm mb-1"
+                          id="reference-document"
+                        >
+                          <option value="">Selecione um documento</option>
+                          <option value="doc-1">Lei de Terras</option>
+                          <option value="doc-2">Código Comercial</option>
+                          <option value="doc-3">Lei de Minas</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsAnnotating(false);
+                          setSelectedText("");
+                          setAnnotationType(null);
+                          window.getSelection()?.removeAllRanges();
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          let comment;
+                          let refDocId;
+                          let refDocTitle;
+
+                          if (annotationType === "comment") {
+                            const commentEl = document.getElementById(
+                              "annotation-comment",
+                            ) as HTMLTextAreaElement;
+                            comment = commentEl?.value;
+                          } else if (annotationType === "reference") {
+                            const refEl = document.getElementById(
+                              "reference-document",
+                            ) as HTMLSelectElement;
+                            refDocId = refEl?.value;
+                            refDocTitle =
+                              refEl?.options[refEl?.selectedIndex]?.text;
+                          }
+
+                          createAnnotation(comment, refDocId, refDocTitle);
+                        }}
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 {/* This would be replaced with an actual PDF viewer component */}
                 <div className="bg-white rounded-lg shadow-lg p-8 max-w-4xl mx-auto">
                   <div className="text-center mb-8">
@@ -224,32 +387,226 @@ const DocumentViewer = ({
                   </div>
 
                   <div className="mb-6">
-                    <h2 className="text-xl font-semibold mb-4">
+                    <h2 className="text-xl font-semibold mb-4 relative group">
                       TÍTULO I - PRINCÍPIOS FUNDAMENTAIS
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("PRINCÍPIOS FUNDAMENTAIS") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </h2>
-                    <h3 className="text-lg font-medium mb-2">
+                    <h3 className="text-lg font-medium mb-2 relative group">
                       ARTIGO 1 - (República de Moçambique)
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("República de Moçambique") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </h3>
-                    <p className="mb-4">
+                    <p className="mb-4 relative group">
                       A República de Moçambique é um Estado independente,
                       soberano, democrático e de justiça social.
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("Estado independente") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </p>
 
-                    <h3 className="text-lg font-medium mb-2">
+                    <h3 className="text-lg font-medium mb-2 relative group">
                       ARTIGO 2 - (Soberania e legalidade)
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("Soberania e legalidade") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </h3>
-                    <p className="mb-4">1. A soberania reside no povo.</p>
-                    <p className="mb-4">
+                    <p className="mb-4 relative group">
+                      1. A soberania reside no povo.
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("soberania reside") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
+                    </p>
+                    <p className="mb-4 relative group">
                       2. O povo moçambicano exerce a soberania segundo as formas
                       fixadas na Constituição.
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("povo moçambicano") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </p>
-                    <p className="mb-4">
+                    <p className="mb-4 relative group">
                       3. O Estado subordina-se à Constituição e funda-se na
                       legalidade.
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("Estado subordina-se") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </p>
-                    <p className="mb-4">
+                    <p className="mb-4 relative group">
                       4. As normas constitucionais prevalecem sobre todas as
                       restantes normas do ordenamento jurídico.
+                      {annotations.some(
+                        (a) =>
+                          a.text.includes("normas constitucionais") &&
+                          a.page === currentPage,
+                      ) && (
+                        <span
+                          className="absolute -left-6 top-0 text-primary"
+                          title="Anotação existente"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                          </svg>
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -262,40 +619,66 @@ const DocumentViewer = ({
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Suas Anotações</h3>
                 <div className="space-y-4">
-                  <div className="p-3 border rounded-md">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Destaque</span>
-                      <span className="text-xs text-muted-foreground">
-                        Pág. 1
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm italic">
-                      "A República de Moçambique é um Estado independente,
-                      soberano, democrático e de justiça social."
+                  {annotations.length > 0 ? (
+                    annotations.map((annotation) => (
+                      <div
+                        key={annotation.id}
+                        className="p-3 border rounded-md"
+                      >
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">
+                            {annotation.type === "highlight" && "Destaque"}
+                            {annotation.type === "comment" && "Comentário"}
+                            {annotation.type === "bookmark" && "Marcador"}
+                            {annotation.type === "reference" && "Referência"}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              Pág. {annotation.page}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => deleteAnnotation(annotation.id)}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-red-500"
+                              >
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                              </svg>
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-sm italic">
+                          "{annotation.text}"
+                        </p>
+                        {annotation.comment && (
+                          <p className="mt-1 text-sm">{annotation.comment}</p>
+                        )}
+                        {annotation.refDocTitle && (
+                          <p className="mt-1 text-sm">
+                            Referência: {annotation.refDocTitle}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma anotação encontrada.
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Artigo 1 - Princípios Fundamentais
-                    </p>
-                  </div>
-
-                  <div className="p-3 border rounded-md">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Comentário</span>
-                      <span className="text-xs text-muted-foreground">
-                        Pág. 2
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm italic">
-                      "A soberania reside no povo."
-                    </p>
-                    <p className="mt-1 text-sm">
-                      Importante princípio democrático que fundamenta todo o
-                      sistema constitucional.
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Artigo 2, Item 1 - Soberania e legalidade
-                    </p>
-                  </div>
+                  )}
                 </div>
               </div>
             </ScrollArea>

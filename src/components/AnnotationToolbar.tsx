@@ -149,19 +149,55 @@ const AnnotationToolbar = ({
             </Tooltip>
           </TooltipProvider>
           <DropdownMenuContent>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => window.alert("Exportando como PDF...")}
+            >
               <FileTextIcon className="h-4 w-4 mr-2" />
               <span>Exportar como PDF</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => window.alert("Exportando como Word...")}
+            >
               <FileIcon className="h-4 w-4 mr-2" />
               <span>Exportar como Word</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => window.alert("Exportando como Texto...")}
+            >
               <TextIcon className="h-4 w-4 mr-2" />
               <span>Exportar como Texto</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                // Save annotations to localStorage
+                const savedAnnotations =
+                  localStorage.getItem("all-annotations");
+                const currentDocAnnotations = localStorage.getItem(
+                  "annotations-doc-001",
+                );
+
+                if (currentDocAnnotations) {
+                  try {
+                    const allAnnotations = savedAnnotations
+                      ? JSON.parse(savedAnnotations)
+                      : {};
+                    allAnnotations["doc-001"] = JSON.parse(
+                      currentDocAnnotations,
+                    );
+                    localStorage.setItem(
+                      "all-annotations",
+                      JSON.stringify(allAnnotations),
+                    );
+                    window.alert("Anotações salvas com sucesso!");
+                  } catch (error) {
+                    console.error("Error saving annotations:", error);
+                    window.alert("Erro ao salvar anotações");
+                  }
+                } else {
+                  window.alert("Nenhuma anotação para salvar");
+                }
+              }}
+            >
               <SaveIcon className="h-4 w-4 mr-2" />
               <span>Salvar anotações</span>
             </DropdownMenuItem>
