@@ -1,25 +1,24 @@
 import React, { useState } from "react";
-import { Sun, Moon, User, Settings, Search } from "lucide-react";
+import { Sun, Moon, User } from "lucide-react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Card, CardContent } from "./ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Switch } from "./ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import Sidebar from "./Sidebar";
 import SearchPanel from "./SearchPanel";
 import DocumentViewer from "./DocumentViewer";
-import DocumentLibrary from "./DocumentLibrary";
+import { legalDocuments } from "@/data/documents";
 
-const Home = () => {
+const MainLayout = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("browse");
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<string | null>(
+    "constitution-moz",
+  );
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
-    // In a real implementation, this would update the document class or theme context
   };
 
   const toggleSidebar = () => {
@@ -30,6 +29,11 @@ const Home = () => {
     setSelectedDocument(documentId);
     setActiveTab("view");
   };
+
+  // Get the selected document details
+  const selectedDocumentData = legalDocuments.find(
+    (doc) => doc.id === selectedDocument,
+  );
 
   return (
     <div
@@ -104,71 +108,81 @@ const Home = () => {
                 <TabsTrigger value="view">Visualizar</TabsTrigger>
               </TabsList>
               <TabsContent value="browse" className="mt-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <h2 className="text-2xl font-bold mb-4">
-                      Categorias Populares
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {[
-                        "Constitucional",
-                        "Civil",
-                        "Penal",
-                        "Administrativo",
-                        "Comercial",
-                        "Trabalhista",
-                      ].map((category) => (
-                        <Button
-                          key={category}
-                          variant="outline"
-                          className="h-24 text-lg justify-start p-4 flex flex-col items-start"
-                          onClick={() =>
-                            handleDocumentSelect(`${category}-001`)
-                          }
-                        >
-                          <span>{category}</span>
-                          <span className="text-xs text-muted-foreground mt-2">
-                            Legislação {category}
-                          </span>
-                        </Button>
-                      ))}
-                    </div>
+                {/* Browse content from Home component */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    "Constitucional",
+                    "Civil",
+                    "Penal",
+                    "Administrativo",
+                    "Comercial",
+                    "Trabalhista",
+                  ].map((category) => (
+                    <Button
+                      key={category}
+                      variant="outline"
+                      className="h-24 text-lg justify-start p-4 flex flex-col items-start"
+                      onClick={() =>
+                        handleDocumentSelect(`${category.toLowerCase()}-001`)
+                      }
+                    >
+                      <span>{category}</span>
+                      <span className="text-xs text-muted-foreground mt-2">
+                        Legislação {category}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
 
-                    <h2 className="text-2xl font-bold mt-8 mb-4">
-                      Documentos Recentes
-                    </h2>
-                    <div className="space-y-2">
-                      {[
-                        "Lei de Bases do Sistema Tributário",
-                        "Código Penal de Moçambique",
-                        "Constituição da República de Moçambique",
-                        "Lei do Trabalho",
-                        "Código Comercial",
-                      ].map((doc, index) => (
-                        <div
-                          key={index}
-                          className="p-3 border rounded-md hover:bg-accent cursor-pointer"
-                          onClick={() => handleDocumentSelect(`doc-${index}`)}
-                        >
-                          <div className="font-medium">{doc}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Acessado em 12/06/2023
-                          </div>
-                        </div>
-                      ))}
+                <h2 className="text-2xl font-bold mt-8 mb-4">
+                  Documentos Recentes
+                </h2>
+                <div className="space-y-2">
+                  {legalDocuments.slice(0, 5).map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-3 border rounded-md hover:bg-accent cursor-pointer"
+                      onClick={() => handleDocumentSelect(doc.id)}
+                    >
+                      <div className="font-medium">{doc.title}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Acessado em{" "}
+                        {new Date(doc.datePublished).toLocaleDateString(
+                          "pt-BR",
+                        )}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  ))}
+                </div>
               </TabsContent>
               <TabsContent value="search" className="mt-4">
                 <SearchPanel onDocumentSelect={handleDocumentSelect} />
               </TabsContent>
               <TabsContent value="view" className="mt-4">
-                {selectedDocument ? (
-                  <DocumentViewer documentId={selectedDocument} />
+                {selectedDocument && selectedDocumentData ? (
+                  <DocumentViewer
+                    documentId={selectedDocumentData.id}
+                    documentTitle={selectedDocumentData.title}
+                    documentType={selectedDocumentData.type}
+                    documentUrl={selectedDocumentData.pdfUrl}
+                  />
                 ) : (
                   <div className="flex flex-col items-center justify-center p-12 text-center">
-                    <Search size={48} className="text-muted-foreground mb-4" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="48"
+                      height="48"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-muted-foreground mb-4"
+                    >
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
                     <h3 className="text-xl font-medium">
                       Nenhum documento selecionado
                     </h3>
@@ -207,4 +221,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default MainLayout;

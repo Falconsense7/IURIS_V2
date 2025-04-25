@@ -33,6 +33,21 @@ interface DocumentViewerProps {
   isOffline?: boolean;
 }
 
+interface Annotation {
+  id: string;
+  text: string;
+  type: string;
+  page: number;
+  comment?: string;
+  refDocId?: string;
+  refDocTitle?: string;
+  createdAt: string;
+  position?: {
+    x: number;
+    y: number;
+  };
+}
+
 const DocumentViewer = ({
   documentUrl = "https://images.unsplash.com/photo-1586880244406-8b245be7f5af?w=800&q=80",
   documentTitle = "Constituição da República de Moçambique",
@@ -76,7 +91,37 @@ const DocumentViewer = ({
   React.useEffect(() => {
     const savedAnnotations = localStorage.getItem(`annotations-${documentId}`);
     if (savedAnnotations) {
-      setAnnotations(JSON.parse(savedAnnotations));
+      try {
+        const parsedAnnotations = JSON.parse(savedAnnotations);
+        setAnnotations(parsedAnnotations);
+        console.log(`Loaded annotations for ${documentId}:`, parsedAnnotations);
+      } catch (error) {
+        console.error("Error loading annotations:", error);
+      }
+    } else {
+      // Initialize with some sample annotations if none exist
+      const sampleAnnotations = [
+        {
+          id: "sample-1",
+          text: "A República de Moçambique é um Estado independente",
+          type: "highlight",
+          page: 1,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "sample-2",
+          text: "PRINCÍPIOS FUNDAMENTAIS",
+          type: "bookmark",
+          page: 1,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+      setAnnotations(sampleAnnotations);
+      localStorage.setItem(
+        `annotations-${documentId}`,
+        JSON.stringify(sampleAnnotations),
+      );
+      console.log(`Created sample annotations for ${documentId}`);
     }
   }, [documentId]);
 
@@ -87,6 +132,22 @@ const DocumentViewer = ({
   ) => {
     if (!selectedText || !annotationType) return;
 
+    // Get the current selection position if available
+    let position = undefined;
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const docRect = documentRef.current?.getBoundingClientRect();
+
+      if (docRect) {
+        position = {
+          x: rect.left - docRect.left + documentRef.current?.scrollLeft || 0,
+          y: rect.top - docRect.top + documentRef.current?.scrollTop || 0,
+        };
+      }
+    }
+
     const newAnnotation: Annotation = {
       id: Date.now().toString(),
       text: selectedText,
@@ -96,8 +157,10 @@ const DocumentViewer = ({
       refDocId,
       refDocTitle,
       createdAt: new Date().toISOString(),
+      position,
     };
 
+    // Update annotations state immediately to trigger re-render
     const updatedAnnotations = [...annotations, newAnnotation];
     setAnnotations(updatedAnnotations);
 
@@ -106,6 +169,9 @@ const DocumentViewer = ({
       `annotations-${documentId}`,
       JSON.stringify(updatedAnnotations),
     );
+
+    console.log("New annotation created:", newAnnotation);
+    console.log("Updated annotations:", updatedAnnotations);
 
     setIsAnnotating(false);
     setSelectedText("");
@@ -267,6 +333,12 @@ const DocumentViewer = ({
                   transformOrigin: "top left",
                   minHeight: `${100 * (100 / zoomLevel)}%`,
                 }}
+                onMouseUp={() => {
+                  const selection = window.getSelection();
+                  if (selection && selection.toString().trim().length > 0) {
+                    setSelectedText(selection.toString().trim());
+                  }
+                }}
               >
                 {isAnnotating && selectedText && (
                   <div className="fixed bottom-4 right-4 bg-background border shadow-lg p-4 rounded-lg z-50 w-80">
@@ -388,31 +460,36 @@ const DocumentViewer = ({
 
                   <div className="mb-6">
                     <h2 className="text-xl font-semibold mb-4 relative group">
-                      TÍTULO I - PRINCÍPIOS FUNDAMENTAIS
-                      {annotations.some(
-                        (a) =>
-                          a.text.includes("PRINCÍPIOS FUNDAMENTAIS") &&
-                          a.page === currentPage,
-                      ) && (
-                        <span
-                          className="absolute -left-6 top-0 text-primary"
-                          title="Anotação existente"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-                          </svg>
-                        </span>
-                      )}
+                      <span className="relative inline-block">
+                        TÍTULO I - PRINCÍPIOS FUNDAMENTAIS
+                        {annotations
+                          .filter(
+                            (a) =>
+                              a.text.includes("PRINCÍPIOS FUNDAMENTAIS") &&
+                              a.page === currentPage,
+                          )
+                          .map((annotation) => (
+                            <span
+                              key={annotation.id}
+                              className="absolute -left-6 top-0 text-primary"
+                              title={`Anotação: ${annotation.type}`}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                              </svg>
+                            </span>
+                          ))}
+                      </span>
                     </h2>
                     <h3 className="text-lg font-medium mb-2 relative group">
                       ARTIGO 1 - (República de Moçambique)
@@ -583,30 +660,6 @@ const DocumentViewer = ({
                     <p className="mb-4 relative group">
                       4. As normas constitucionais prevalecem sobre todas as
                       restantes normas do ordenamento jurídico.
-                      {annotations.some(
-                        (a) =>
-                          a.text.includes("normas constitucionais") &&
-                          a.page === currentPage,
-                      ) && (
-                        <span
-                          className="absolute -left-6 top-0 text-primary"
-                          title="Anotação existente"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-                          </svg>
-                        </span>
-                      )}
                     </p>
                   </div>
                 </div>

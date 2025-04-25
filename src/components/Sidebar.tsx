@@ -103,6 +103,7 @@ const Sidebar = ({
     { id: "fav-1", name: "Constituição da República" },
     { id: "fav-2", name: "Código Civil" },
     { id: "fav-3", name: "Lei do Trabalho" },
+    { id: "fav-4", name: "Lei da Família" },
   ];
 
   const recentDocuments: RecentDocument[] = [
