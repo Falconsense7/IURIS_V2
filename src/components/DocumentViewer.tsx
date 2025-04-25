@@ -24,6 +24,9 @@ import {
   Sun,
   ZoomIn,
   ZoomOut,
+  MessageSquare,
+  Link,
+  Highlighter as HighlighterIcon,
 } from "lucide-react";
 
 interface DocumentViewerProps {
@@ -132,22 +135,6 @@ const DocumentViewer = ({
   ) => {
     if (!selectedText || !annotationType) return;
 
-    // Get the current selection position if available
-    let position = undefined;
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const docRect = documentRef.current?.getBoundingClientRect();
-
-      if (docRect) {
-        position = {
-          x: rect.left - docRect.left + documentRef.current?.scrollLeft || 0,
-          y: rect.top - docRect.top + documentRef.current?.scrollTop || 0,
-        };
-      }
-    }
-
     const newAnnotation: Annotation = {
       id: Date.now().toString(),
       text: selectedText,
@@ -157,7 +144,6 @@ const DocumentViewer = ({
       refDocId,
       refDocTitle,
       createdAt: new Date().toISOString(),
-      position,
     };
 
     // Update annotations state immediately to trigger re-render
@@ -418,7 +404,43 @@ const DocumentViewer = ({
                   </div>
                 )}
                 {/* This would be replaced with an actual PDF viewer component */}
-                <div className="bg-white rounded-lg shadow-lg p-8 max-w-4xl mx-auto">
+                <div className="bg-white rounded-lg shadow-lg p-8 max-w-4xl mx-auto relative">
+                  {/* Debug info */}
+                  <div className="absolute top-0 right-0 bg-red-100 p-2 text-xs z-50">
+                    Annotations: {annotations.length}
+                  </div>
+
+                  {/* Annotation Markers */}
+                  {annotations.map((annotation) => {
+                    // Determine icon based on annotation type
+                    let bgColor = "bg-yellow-200";
+                    let Icon = Bookmark;
+
+                    if (annotation.type === "comment") {
+                      bgColor = "bg-blue-200";
+                      Icon = MessageSquare;
+                    } else if (annotation.type === "reference") {
+                      bgColor = "bg-green-200";
+                      Icon = Link;
+                    } else if (annotation.type === "highlight") {
+                      bgColor = "bg-yellow-200";
+                      Icon = HighlighterIcon;
+                    }
+
+                    return (
+                      <div
+                        key={annotation.id}
+                        className={`absolute ${bgColor} p-1 rounded-full cursor-pointer z-10`}
+                        style={{
+                          top: `${annotation.id.length * 20}px`,
+                          right: "10px",
+                        }}
+                        title={`${annotation.type}: ${annotation.text}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                    );
+                  })}
                   <div className="text-center mb-8">
                     <h1 className="text-2xl font-bold mb-2">
                       CONSTITUIÇÃO DA REPÚBLICA DE MOÇAMBIQUE
